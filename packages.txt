@@ -2,4 +2,9 @@ default-jdk
 g++
 gcc
 golang-go
+rustc
 ruby-full
+php-cli
+lua5.3
+perl
+powershell
