@@ -2,3 +2,4 @@ streamlit
 streamlit-ace
 pyflakes
 watchdog
+pandas
