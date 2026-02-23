@@ -12,3 +12,4 @@ lua5.3
 perl
 sqlite3
 powershell
+mono-complete
