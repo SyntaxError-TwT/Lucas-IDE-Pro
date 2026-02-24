@@ -3,3 +3,4 @@ streamlit-ace
 pyflakes
 watchdog
 pandas
+firebase-admin
