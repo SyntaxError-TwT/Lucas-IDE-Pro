@@ -26,6 +26,8 @@ Shell: Bash, PowerShell, Batch.
 
 Web (Download-Only): HTML, CSS, SQL. 📥
 
+👀Sneak Peak
+
 🚀 Quick Start
 
 1. Open your browser
