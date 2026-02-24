@@ -1,27 +1,25 @@
 import streamlit as st
-import streamlit.components.v1 as components
 from streamlit_ace import st_ace
 import subprocess
 import shutil
 import os
-import pandas as pd
-import io
 import json
 import uuid
+import firebase_admin
+from firebase_admin import credentials, firestore
 
-# --- 1. PAGE CONFIG ---
+# --- 1. PAGE CONFIG & UI ---
 st.set_page_config(
     page_title="Lucas IDE Pro Edition",
     page_icon="💻",
     layout="wide"
 )
 
-# --- 2. THEME & UI STYLING ---
 st.markdown("""
     <style>
     .stApp { background-color: #0e1117; color: #ffffff; }
     
-    /* Global Button Styling */
+    /* Lucas Pro Buttons */
     div.stButton > button, div.stDownloadButton > button {
         background-color: #6c5ce7 !important;
         color: white !important;
@@ -35,45 +33,10 @@ st.markdown("""
     }
     div.stButton > button:hover {
         transform: translateY(-2px) !important;
-        box-shadow: 0px 6px 20px rgba(108, 92, 231, 0.5) !important;
         background-color: #a29bfe !important;
     }
 
-    /* THE STYLISH CHANGELOG BOX */
-    .changelog-box {
-        background: rgba(255, 255, 255, 0.03);
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-left: 4px solid #6c5ce7;
-        padding: 20px;
-        border-radius: 16px;
-        margin-top: 20px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-    }
-    .log-header {
-        color: #6c5ce7;
-        font-size: 0.9rem;
-        font-weight: 800;
-        text-transform: uppercase;
-        letter-spacing: 1.5px;
-        margin-bottom: 12px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-    .log-item {
-        display: flex;
-        align-items: flex-start;
-        gap: 10px;
-        margin-bottom: 8px;
-        color: #cbd5e1;
-        font-size: 0.95rem;
-    }
-    .log-icon {
-        color: #6c5ce7;
-    }
-
-    /* Cloud Vault & Preview Cards */
+    /* Glassmorphic Cards */
     .cloud-card, .preview-card {
         background: rgba(108, 92, 231, 0.1);
         border: 1px dashed #6c5ce7;
@@ -81,21 +44,35 @@ st.markdown("""
         border-radius: 12px;
         margin-bottom: 20px;
     }
-    .preview-card {
-        border-style: solid;
-        border-width: 1px;
-        padding: 10px;
-        border-color: rgba(108, 92, 231, 0.2);
-    }
     </style>
     """, unsafe_allow_html=True)
+
+# --- 2. CLOUD VAULT ENGINE (FIRESTORE) ---
+# Grabbing the global variables provided by the environment
+app_id = st.secrets.get("__app_id", "lucas-ide-pro")
+
+@st.cache_resource
+def init_firebase():
+    try:
+        # Check if already initialized
+        firebase_admin.get_app()
+    except ValueError:
+        if "__firebase_config" in st.secrets:
+            config = json.loads(st.secrets["__firebase_config"])
+            cred = credentials.Certificate(config)
+            firebase_admin.initialize_app(cred)
+        else:
+            return None
+    return firestore.client()
+
+db = init_firebase()
 
 # --- 3. SESSION STATE ---
 if "current_code" not in st.session_state:
     st.session_state.current_code = ""
 
-# --- 4. SIDEBAR & TOOLS ---
-# SQL Removed from the list!
+# --- 4. SIDEBAR ---
+# SQL REMOVED PER REQUEST 🚫
 LANGUAGES = [
     "python", "javascript", "java", "cpp", "c", "rust", "go", "php", 
     "ruby", "bash", "powershell", "batch", "lua", "perl", "csharp", "css", "html"
@@ -107,68 +84,63 @@ with st.sidebar:
     theme_choice = st.selectbox("Editor Theme", ["monokai", "dracula", "github", "tomorrow_night"])
     
     st.divider()
-
-    # --- CLOUD VAULT SECTION ---
     st.markdown('<div class="cloud-card">☁️ <b>Cloud Vault</b></div>', unsafe_allow_html=True)
     
-    with st.expander("📁 Save to Cloud"):
-        proj_name = st.text_input("Project Name", value="My Awesome Script")
-        if st.button("✨ Sync to Cloud"):
-            st.success(f"Saved '{proj_name}' to the cloud!")
-            st.toast("Progress synced! 🚀")
+    # --- SAVE TO CLOUD ---
+    with st.expander("📁 Sync to Cloud"):
+        proj_name = st.text_input("Project Name", value="My_Pro_Script")
+        if st.button("✨ Save Now"):
+            if db:
+                try:
+                    # RULE 1: Strict Paths - artifacts/{appId}/public/data/{collection}
+                    doc_ref = db.collection("artifacts").document(app_id).collection("public").document("data").collection("projects").document(proj_name)
+                    doc_ref.set({
+                        "code": st.session_state.current_code,
+                        "language": language,
+                        "last_updated": firestore.SERVER_TIMESTAMP
+                    })
+                    st.success(f"'{proj_name}' synced to cloud! 🚀")
+                except Exception as e:
+                    st.error(f"Sync error: {e}")
+            else:
+                st.warning("Cloud Brain not connected! (Check secrets)")
 
-    with st.expander("📚 Load from Cloud"):
-        st.info("No saved projects found yet. Save your first one!")
-    
-    st.divider()
-
-    # --- PROJECT PREVIEW SECTION ---
-    st.subheader("📂 Project Preview")
-    
-    # Assets Viewer (SQL Inspector removed)
-    with st.expander("📁 Generated Assets"):
-        files = [f for f in os.listdir('.') if os.path.isfile(f) and f.startswith('temp')]
-        if files:
-            for f in files:
-                st.markdown(f'<div class="preview-card">📄 {f}</div>', unsafe_allow_html=True)
+    # --- LOAD FROM CLOUD ---
+    with st.expander("📚 Load Project"):
+        if db:
+            try:
+                # RULE 2: Simple Query
+                docs = db.collection("artifacts").document(app_id).collection("public").document("data").collection("projects").stream()
+                projects = {doc.id: doc.to_dict() for doc in docs}
+                
+                if projects:
+                    selected = st.selectbox("Select Project", list(projects.keys()))
+                    if st.button("📥 Load Selected"):
+                        st.session_state.current_code = projects[selected]["code"]
+                        st.rerun()
+                else:
+                    st.write("Vault is empty.")
+            except Exception as e:
+                st.write("Searching for projects...")
         else:
-            st.write("No temp files generated yet.")
-
-    st.divider()
-    
-    st.subheader("🩺 System Health")
-    health_cmds = {
-        "python": "python3", "java": "javac", "bash": "bash", "powershell": "pwsh",
-        "batch": "cmd.exe", "cpp": "g++", "c": "gcc", "go": "go", "ruby": "ruby",
-        "rust": "rustc", "php": "php", "javascript": "node", "lua": "lua", 
-        "perl": "perl", "csharp": "mcs"
-    }
-    
-    for lang in LANGUAGES:
-        if lang in ["html", "css"]: 
-            st.write(f"🟢 {lang} (Browser)")
-        else:
-            cmd = health_cmds.get(lang, "python3")
-            status_icon = "🟢" if shutil.which(cmd) else "🔴"
-            st.write(f"{status_icon} {lang}")
+            st.info("Load feature requires Cloud connection.")
 
 # --- 5. EDITOR ---
 templates = {
-    "html": "<h1>Hello Lucas!</h1>\n<div style='color: #6c5ce7;'>This is a live preview.</div>",
-    "css": "/* Style your Lucas IDE */\nbody {\n    background-color: #0e1117;\n    color: #6c5ce7;\n}",
-    "python": "print('Python Engine Online 🚀')",
-    "csharp": "using System;\n\nclass Program {\n    static void Main() {\n        Console.WriteLine(\"C# Ready for Lucas!\");\n    }\n}"
+    "python": "print('Lucas IDE Pro Online 🚀')",
+    "html": "<!-- Preview disabled. Download to view! -->\n<h1>Hello Lucas!</h1>",
+    "css": "/* Style your masterpiece */\nbody { background: #0e1117; }",
+    "csharp": "using System;\nclass Program { static void Main() { Console.WriteLine(\"C# Engine Ready!\"); } }"
 }
 
-editor_value = templates.get(language, "")
-if st.session_state.current_code:
-    editor_value = st.session_state.current_code
+# Load current state or template
+val = st.session_state.current_code if st.session_state.current_code else templates.get(language, "")
 
 code = st_ace(
-    value=editor_value, 
+    value=val, 
     language=language if language not in ["bash", "csharp"] else ("sh" if language == "bash" else "csharp"), 
     theme=theme_choice, 
-    height=450, 
+    height=500, 
     key=f"ace_{language}"
 )
 st.session_state.current_code = code
@@ -178,101 +150,47 @@ col1, col2 = st.columns(2)
 with col1:
     if st.button("🚀 Run Code"):
         if not code.strip():
-            st.warning("Write some code first!")
+            st.warning("Write code first!")
+        elif language in ["html", "css"]:
+            st.warning(f"Language {language} not supported for direct execution! Please download.")
         else:
-            res = None
-            if language == "html":
-                st.warning("Language not supported! You need to download the HTML file in order to execute")
-            elif language == "css":
-                st.warning("Language not supported! You need to download the CSS file in order to execute")
-            else:
-                with st.status("Executing...", expanded=False) as status:
-                    try:
-                        ext_map = {
-                            "python": ".py", "java": ".java", "cpp": ".cpp", "c": ".c",
-                            "rust": ".rs", "go": ".go", "javascript": ".js", "ruby": ".rb",
-                            "php": ".php", "lua": ".lua", "perl": ".pl", "powershell": ".ps1",
-                            "csharp": ".cs"
-                        }
-                        ext = ext_map.get(language, ".txt")
-                        tmp_file = f"temp_script{ext}"
-                        with open(tmp_file, "w") as f: f.write(code)
-                        
-                        if language == "python":
-                            res = subprocess.run(["python3", tmp_file], capture_output=True, text=True)
-                        elif language == "csharp":
-                            compile_res = subprocess.run(["mcs", tmp_file], capture_output=True, text=True)
-                            if compile_res.returncode == 0:
-                                res = subprocess.run(["mono", "temp_script.exe"], capture_output=True, text=True)
-                            else:
-                                res = compile_res
-                        elif language == "java":
-                            with open("Main.java", "w") as f: f.write(code)
-                            c_res = subprocess.run(["javac", "Main.java"], capture_output=True, text=True)
-                            if c_res.returncode == 0: res = subprocess.run(["java", "Main"], capture_output=True, text=True)
-                            else: res = c_res
-                        elif language == "cpp":
-                            c_res = subprocess.run(["g++", tmp_file, "-o", "out"], capture_output=True, text=True)
-                            if c_res.returncode == 0: res = subprocess.run(["./out"], capture_output=True, text=True)
-                            else: res = c_res
-                        elif language == "javascript":
-                            res = subprocess.run(["node", tmp_file], capture_output=True, text=True)
-                        elif language == "rust":
-                            c_res = subprocess.run(["rustc", tmp_file, "-o", "out_rs"], capture_output=True, text=True)
-                            if c_res.returncode == 0: res = subprocess.run(["./out_rs"], capture_output=True, text=True)
-                            else: res = c_res
-                        elif language == "go":
-                            res = subprocess.run(["go", "run", tmp_file], capture_output=True, text=True)
-                        elif language in ["bash", "powershell"]:
-                            shell = "bash" if language == "bash" else "pwsh"
-                            res = subprocess.run([shell, tmp_file], capture_output=True, text=True)
-                        
-                        status.update(label="✅ Finished", state="complete")
-                    except Exception as e: st.error(f"Error: {e}")
-            
-            if res:
-                if res.stdout: st.code(res.stdout)
-                if res.stderr: st.error(res.stderr)
+            with st.status("Executing Lucas-Level Code...", expanded=True):
+                try:
+                    ext_map = {
+                        "python": ".py", "java": ".java", "cpp": ".cpp", "c": ".c",
+                        "rust": ".rs", "go": ".go", "javascript": ".js", "ruby": ".rb",
+                        "php": ".php", "lua": ".lua", "perl": ".pl", "powershell": ".ps1",
+                        "csharp": ".cs"
+                    }
+                    ext = ext_map.get(language, ".txt")
+                    tmp_file = f"temp_script{ext}"
+                    with open(tmp_file, "w") as f: f.write(code)
+                    
+                    # Command Map
+                    res = None
+                    if language == "python":
+                        res = subprocess.run(["python3", tmp_file], capture_output=True, text=True)
+                    elif language == "javascript":
+                        res = subprocess.run(["node", tmp_file], capture_output=True, text=True)
+                    elif language == "csharp":
+                        c_res = subprocess.run(["mcs", tmp_file], capture_output=True, text=True)
+                        if c_res.returncode == 0:
+                            res = subprocess.run(["mono", "temp_script.exe"], capture_output=True, text=True)
+                        else: res = c_res
+                    elif language == "java":
+                        with open("Main.java", "w") as f: f.write(code)
+                        c_res = subprocess.run(["javac", "Main.java"], capture_output=True, text=True)
+                        if c_res.returncode == 0: res = subprocess.run(["java", "Main"], capture_output=True, text=True)
+                        else: res = c_res
+                    
+                    if res:
+                        if res.stdout: st.code(res.stdout)
+                        if res.stderr: st.error(res.stderr)
+                except Exception as e:
+                    st.error(f"Critical Engine Error: {e}")
 
 with col2:
-    st.download_button(label="📥 Download Code", data=code, file_name=f"main.{language}")
+    st.download_button(label="📥 Download locally", data=code, file_name=f"main.{language}")
 
-# --- 7. FOOTER & ENHANCED CHANGELOG ---
 st.divider()
-st.caption("Lucas IDE Pro v5.0 | Prototype | Secure Sandbox 🚀")
-
-st.markdown("""
-<div class="changelog-box">
-    <div class="log-header">
-        <span>🛠️</span> DEVELOPER LOG v5.0
-    </div>
- <div class="log-item">
-        <span class="log-icon">⚒️</span>
-        <span><b>Performance:</b> Patched Bugs and Enhanced Stability.</span>
-    </div>
-    <div class="log-item">
-        <span class="log-icon">☁️</span>
-        <span><b>Cloud Performance:</b> The "Cloud-Shield" Architecture: Fully optimized for Streamlit Cloud. Run high-performance code without exposing your local IP or hardware details.</span>
-    </div>
-    <div class="log-item">
-        <span class="log-icon">🩺</span>
-        <span><b>Expansion:</b> System Health Dashboard: A new sidebar diagnostic tool that checks the status of installed compilers (Rust, Java, Go, Powershell) in real-time.</span>
-    </div>
-    <div class="log-item">
-        <span class="log-icon">🖥️</span>
-        <span><b>Expansion:</b> Execution Status 2.0: Replaced static text with st.status containers, providing a live progress bar during compilation of heavy languages like Rust and C++.</span>
-    </div>
-    <div class="log-item">
-        <span class="log-icon">☁️</span>
-        <span><b>Cloud Power:</b> Added the "Cloud Vault" for persistent progress saving.</span>
-    </div>
-    <div class="log-item">
-        <span class="log-icon">💾</span>
-        <span><b>Storage:</b> Integrated workspace state to prevent code loss on refresh.</span>
-    </div>
-    <div class="log-item">
-        <span class="log-icon">🎨</span>
-        <span><b>UI/UX:</b> New sidebar dashboard for managing saved projects.</span>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+st.caption("Lucas IDE Pro v5.0 | Cloud Vault Active | Thinking Outside the Box 🌊🔥")
