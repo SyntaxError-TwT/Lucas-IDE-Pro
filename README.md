@@ -28,6 +28,8 @@ Web (Download-Only): HTML, CSS, SQL. 📥
 
 👀Sneak Peak
 
+![0223](https://github.com/user-attachments/assets/fba6f1b9-b932-4c25-b3fa-7ce2dabca600)
+
 🚀 Quick Start
 
 1. Open your browser
