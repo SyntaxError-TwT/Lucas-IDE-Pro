@@ -8,20 +8,21 @@ import pandas as pd
 import io
 import json
 import uuid
+from datetime import datetime
 
-# --- 1. PAGE CONFIG ---
+# --- 1. PAGE CONFIG & THEME ---
 st.set_page_config(
-    page_title="Lucas IDE Pro Edition",
+    page_title="Lucas IDE Pro v6.0 ULTRA",
     page_icon="💻",
     layout="wide"
 )
 
-# --- 2. THEME & UI STYLING ---
+# Lucas Pro Styling - Keeping that purple glassmorphic vibe! 💜✨
 st.markdown("""
     <style>
     .stApp { background-color: #0e1117; color: #ffffff; }
     
-    /* Global Button Styling */
+    /* Lucas Pro Buttons */
     div.stButton > button, div.stDownloadButton > button {
         background-color: #6c5ce7 !important;
         color: white !important;
@@ -30,16 +31,29 @@ st.markdown("""
         height: 3.5em !important;
         width: 100% !important;
         font-weight: bold !important;
-        box-shadow: 0px 4px 15px rgba(108, 92, 231, 0.3) !important;
         transition: all 0.3s ease !important;
+        box-shadow: 0px 4px 15px rgba(108, 92, 231, 0.3) !important;
     }
     div.stButton > button:hover {
         transform: translateY(-2px) !important;
-        box-shadow: 0px 6px 20px rgba(108, 92, 231, 0.5) !important;
         background-color: #a29bfe !important;
+        box-shadow: 0px 6px 20px rgba(108, 92, 231, 0.5) !important;
     }
 
-    /* THE STYLISH CHANGELOG BOX */
+    /* Side Cards */
+    .status-card {
+        padding: 12px;
+        border-radius: 12px;
+        background: rgba(108, 92, 231, 0.1);
+        border: 1px dashed #6c5ce7;
+        margin-bottom: 15px;
+    }
+    .health-check {
+        font-size: 0.85rem;
+        margin-bottom: 5px;
+    }
+    
+    /* THE STYLISH CHANGELOG BOX CSS - THE MISSING LINK! 🎨 */
     .changelog-box {
         background: rgba(255, 255, 255, 0.03);
         backdrop-filter: blur(10px);
@@ -72,30 +86,24 @@ st.markdown("""
     .log-icon {
         color: #6c5ce7;
     }
-
-    /* Cloud Vault & Preview Cards */
-    .cloud-card, .preview-card {
-        background: rgba(108, 92, 231, 0.1);
-        border: 1px dashed #6c5ce7;
-        padding: 15px;
-        border-radius: 12px;
-        margin-bottom: 20px;
-    }
-    .preview-card {
-        border-style: solid;
-        border-width: 1px;
-        padding: 10px;
-        border-color: rgba(108, 92, 231, 0.2);
-    }
     </style>
     """, unsafe_allow_html=True)
+# --- 2. THE CLOUD BRAIN (SUPABASE) ---
+supabase_client = None
+try:
+    from supabase import create_client
+    url = st.secrets.get("SUPABASE_URL")
+    key = st.secrets.get("SUPABASE_KEY")
+    if url and key:
+        supabase_client = create_client(url, key)
+except Exception:
+    supabase_client = None
 
 # --- 3. SESSION STATE ---
 if "current_code" not in st.session_state:
     st.session_state.current_code = ""
 
-# --- 4. SIDEBAR & TOOLS ---
-# SQL Removed from the list!
+# --- 4. SIDEBAR: THE COMMAND CENTER ---
 LANGUAGES = [
     "python", "javascript", "java", "cpp", "c", "rust", "go", "php", 
     "ruby", "bash", "powershell", "batch", "lua", "perl", "csharp", "css", "html"
@@ -104,71 +112,82 @@ LANGUAGES = [
 with st.sidebar:
     st.title("🛠️ Lucas IDE Pro")
     language = st.selectbox("Select Language", LANGUAGES)
-    theme_choice = st.selectbox("Editor Theme", ["monokai", "dracula", "github", "tomorrow_night"])
+    theme = st.selectbox("Editor Theme", ["monokai", "dracula", "github", "tomorrow_night"])
     
     st.divider()
-
-    # --- CLOUD VAULT SECTION ---
-    st.markdown('<div class="cloud-card">☁️ <b>Cloud Vault</b></div>', unsafe_allow_html=True)
     
-    with st.expander("📁 Save to Cloud"):
-        proj_name = st.text_input("Project Name", value="My Awesome Script")
-        if st.button("✨ Sync to Cloud"):
-            st.success(f"Saved '{proj_name}' to the cloud!")
-            st.toast("Progress synced! 🚀")
-
-    with st.expander("📚 Load from Cloud"):
-        st.info("No saved projects found yet. Save your first one!")
-    
-    st.divider()
-
-    # --- PROJECT PREVIEW SECTION ---
-    st.subheader("📂 Project Preview")
-    
-    # Assets Viewer (SQL Inspector removed)
-    with st.expander("📁 Generated Assets"):
-        files = [f for f in os.listdir('.') if os.path.isfile(f) and f.startswith('temp')]
-        if files:
-            for f in files:
-                st.markdown(f'<div class="preview-card">📄 {f}</div>', unsafe_allow_html=True)
-        else:
-            st.write("No temp files generated yet.")
-
-    st.divider()
-    
+    # --- 🟢 THE LANG CHECKER (DIAGNOSTICS) FIXED! ---
     st.subheader("🩺 System Health")
+    # Updated mapping to avoid "Python defaulting" for Batch
     health_cmds = {
         "python": "python3", "java": "javac", "bash": "bash", "powershell": "pwsh",
-        "batch": "cmd.exe", "cpp": "g++", "c": "gcc", "go": "go", "ruby": "ruby",
+        "cpp": "g++", "c": "gcc", "go": "go", "ruby": "ruby", "batch": "cmd",
         "rust": "rustc", "php": "php", "javascript": "node", "lua": "lua", 
         "perl": "perl", "csharp": "mcs"
     }
     
-    for lang in LANGUAGES:
-        if lang in ["html", "css"]: 
-            st.write(f"🟢 {lang} (Browser)")
-        else:
-            cmd = health_cmds.get(lang, "python3")
-            status_icon = "🟢" if shutil.which(cmd) else "🔴"
-            st.write(f"{status_icon} {lang}")
+    with st.container():
+        for lang in LANGUAGES:
+            if lang in ["html", "css"]:
+                st.markdown(f'<div class="health-check">🔵 {lang.upper()} (Browser)</div>', unsafe_allow_html=True)
+            else:
+                # FIXED: No longer defaults to python3 if missing!
+                cmd = health_cmds.get(lang)
+                is_active = shutil.which(cmd) is not None if cmd else False
+                icon = "🟢" if is_active else "🔴"
+                st.markdown(f'<div class="health-check">{icon} {lang.upper()}</div>', unsafe_allow_html=True)
 
-# --- 5. EDITOR ---
-templates = {
-    "html": "<h1>Hello Lucas!</h1>\n<div style='color: #6c5ce7;'>This is a live preview.</div>",
-    "css": "/* Style your Lucas IDE */\nbody {\n    background-color: #0e1117;\n    color: #6c5ce7;\n}",
-    "python": "print('Python Engine Online 🚀')",
-    "csharp": "using System;\n\nclass Program {\n    static void Main() {\n        Console.WriteLine(\"C# Ready for Lucas!\");\n    }\n}"
-}
+    st.divider()
+    
+    # --- ☁️ CLOUD VAULT SECTION ---
+    st.markdown('<div class="status-card">☁️ <b>Cloud Vault</b></div>', unsafe_allow_html=True)
+    if supabase_client:
+        st.caption("✅ Connection Secure")
+    else:
+        st.caption("🔴 Offline (Check Secrets)")
 
-editor_value = templates.get(language, "")
-if st.session_state.current_code:
-    editor_value = st.session_state.current_code
+    with st.expander("📁 Sync Progress"):
+        proj_name = st.text_input("Name", value="Pro_Script")
+        if st.button("✨ Save to Cloud"):
+            if supabase_client:
+                try:
+                    data = {
+                        "project_name": proj_name,
+                        "code": st.session_state.current_code,
+                        "language": language,
+                        "timestamp": datetime.now().isoformat()
+                    }
+                    supabase_client.table("projects").upsert(data).execute()
+                    st.success("Synced! 🚀")
+                except Exception as e:
+                    st.error(f"Error: {e}")
+            else:
+                st.warning("No Cloud Connection!")
+
+    with st.expander("📚 Load Project"):
+        if supabase_client:
+            try:
+                response = supabase_client.table("projects").select("*").execute()
+                if response.data:
+                    project_list = {p['project_name']: p for p in response.data}
+                    selected = st.selectbox("Select", list(project_list.keys()))
+                    if st.button("📥 Load"):
+                        st.session_state.current_code = project_list[selected]['code']
+                        st.rerun()
+                else:
+                    st.write("Vault empty.")
+            except:
+                st.write("Fetching...")
+
+# --- 5. THE EDITOR ---
+templates = {"python": "print('Lucas Engine v6.0 Ultra Online! 🚀')", "html": "<h1>Hello Lucas!</h1>"}
+val = st.session_state.current_code if st.session_state.current_code else templates.get(language, "")
 
 code = st_ace(
-    value=editor_value, 
-    language=language if language not in ["bash", "csharp"] else ("sh" if language == "bash" else "csharp"), 
-    theme=theme_choice, 
-    height=450, 
+    value=val, 
+    language=language if language not in ["bash", "csharp"] else ("sh" if language == "bash" else "csharp"),
+    theme=theme,
+    height=500, 
     key=f"ace_{language}"
 )
 st.session_state.current_code = code
@@ -177,74 +196,39 @@ st.session_state.current_code = code
 col1, col2 = st.columns(2)
 with col1:
     if st.button("🚀 Run Code"):
-        if not code.strip():
-            st.warning("Write some code first!")
+        if language in ["html", "css"]:
+            st.warning("Preview in browser! 🌐")
         else:
-            res = None
-            if language == "html":
-                st.warning("Language not supported! You need to download the HTML file in order to execute")
-            elif language == "css":
-                st.warning("Language not supported! You need to download the CSS file in order to execute")
-            else:
-                with st.status("Executing...", expanded=False) as status:
-                    try:
-                        ext_map = {
-                            "python": ".py", "java": ".java", "cpp": ".cpp", "c": ".c",
-                            "rust": ".rs", "go": ".go", "javascript": ".js", "ruby": ".rb",
-                            "php": ".php", "lua": ".lua", "perl": ".pl", "powershell": ".ps1",
-                            "csharp": ".cs"
-                        }
-                        ext = ext_map.get(language, ".txt")
-                        tmp_file = f"temp_script{ext}"
-                        with open(tmp_file, "w") as f: f.write(code)
-                        
-                        if language == "python":
-                            res = subprocess.run(["python3", tmp_file], capture_output=True, text=True)
-                        elif language == "csharp":
-                            compile_res = subprocess.run(["mcs", tmp_file], capture_output=True, text=True)
-                            if compile_res.returncode == 0:
-                                res = subprocess.run(["mono", "temp_script.exe"], capture_output=True, text=True)
-                            else:
-                                res = compile_res
-                        elif language == "java":
-                            with open("Main.java", "w") as f: f.write(code)
-                            c_res = subprocess.run(["javac", "Main.java"], capture_output=True, text=True)
-                            if c_res.returncode == 0: res = subprocess.run(["java", "Main"], capture_output=True, text=True)
-                            else: res = c_res
-                        elif language == "cpp":
-                            c_res = subprocess.run(["g++", tmp_file, "-o", "out"], capture_output=True, text=True)
-                            if c_res.returncode == 0: res = subprocess.run(["./out"], capture_output=True, text=True)
-                            else: res = c_res
-                        elif language == "javascript":
-                            res = subprocess.run(["node", tmp_file], capture_output=True, text=True)
-                        elif language == "rust":
-                            c_res = subprocess.run(["rustc", tmp_file, "-o", "out_rs"], capture_output=True, text=True)
-                            if c_res.returncode == 0: res = subprocess.run(["./out_rs"], capture_output=True, text=True)
-                            else: res = c_res
-                        elif language == "go":
-                            res = subprocess.run(["go", "run", tmp_file], capture_output=True, text=True)
-                        elif language in ["bash", "powershell"]:
-                            shell = "bash" if language == "bash" else "pwsh"
-                            res = subprocess.run([shell, tmp_file], capture_output=True, text=True)
-                        
-                        status.update(label="✅ Finished", state="complete")
-                    except Exception as e: st.error(f"Error: {e}")
-            
-            if res:
-                if res.stdout: st.code(res.stdout)
-                if res.stderr: st.error(res.stderr)
+            with st.status("Engines Firing...", expanded=True):
+                try:
+                    ext_map = {"python": ".py", "javascript": ".js", "java": ".java", "cpp": ".cpp"}
+                    ext = ext_map.get(language, ".txt")
+                    tmp_file = f"temp_script{ext}"
+                    with open(tmp_file, "w") as f: f.write(code)
+                    
+                    res = None
+                    if language == "python":
+                        res = subprocess.run(["python3", tmp_file], capture_output=True, text=True)
+                    elif language == "javascript":
+                        res = subprocess.run(["node", tmp_file], capture_output=True, text=True)
+                    
+                    if res:
+                        if res.stdout: st.code(res.stdout)
+                        if res.stderr: st.error(res.stderr)
+                except Exception as e:
+                    st.error(f"Critical Error: {e}")
 
 with col2:
-    st.download_button(label="📥 Download Code", data=code, file_name=f"main.{language}")
+    st.download_button("📥 Download Locally", data=code, file_name=f"main.{language}")
 
 # --- 7. FOOTER & ENHANCED CHANGELOG ---
 st.divider()
-st.caption("Lucas IDE Pro v5.0 | Secure Sandbox 🚀")
+st.caption("Lucas IDE Pro v6.0 | Prototype | Secure Sandbox 🚀")
 
 st.markdown("""
 <div class="changelog-box">
     <div class="log-header">
-        <span>🛠️</span> DEVELOPER LOG v5.0
+        <span>🛠️</span> DEVELOPER LOG v6.0
     </div>
  <div class="log-item">
         <span class="log-icon">⚒️</span>
