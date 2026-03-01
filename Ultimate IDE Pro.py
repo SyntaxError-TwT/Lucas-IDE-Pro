@@ -239,7 +239,7 @@ with col2:
 
 # --- 7. FOOTER & ENHANCED CHANGELOG ---
 st.divider()
-st.caption("Lucas IDE Pro v5.0 | Prototype | Secure Sandbox 🚀")
+st.caption("Lucas IDE Pro v5.0 | Secure Sandbox 🚀")
 
 st.markdown("""
 <div class="changelog-box">
