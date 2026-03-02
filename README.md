@@ -1,4 +1,4 @@
-💻 Lucas IDE Pro Edition v5.0 (Coming soon, current version v4.9)
+💻 Lucas IDE Pro Edition v6.0
 
 Welcome to the Lucas IDE Pro Edition, a high-performance, stylish, and multi-language web-based development environment. Built for speed, security, and aesthetics. 🚀✨
 
