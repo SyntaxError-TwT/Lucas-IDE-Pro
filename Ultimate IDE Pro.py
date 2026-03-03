@@ -88,6 +88,7 @@ st.markdown("""
     }
     </style>
     """, unsafe_allow_html=True)
+
 # --- 2. THE CLOUD BRAIN (SUPABASE) ---
 supabase_client = None
 try:
@@ -109,6 +110,14 @@ LANGUAGES = [
     "ruby", "bash", "powershell", "batch", "lua", "perl", "csharp", "css", "html"
 ]
 
+# Mapping for correct file extensions 🗺️
+EXT_MAP = {
+    "python": ".py", "javascript": ".js", "java": ".java", "cpp": ".cpp",
+    "c": ".c", "rust": ".rs", "go": ".go", "php": ".php", "ruby": ".rb",
+    "bash": ".sh", "powershell": ".ps1", "batch": ".bat", "lua": ".lua",
+    "perl": ".pl", "csharp": ".cs", "css": ".css", "html": ".html"
+}
+
 with st.sidebar:
     st.title("🛠️ Lucas IDE Pro")
     language = st.selectbox("Select Language", LANGUAGES)
@@ -118,7 +127,6 @@ with st.sidebar:
     
     # --- 🟢 THE LANG CHECKER (DIAGNOSTICS) FIXED! ---
     st.subheader("🩺 System Health")
-    # Updated mapping to avoid "Python defaulting" for Batch
     health_cmds = {
         "python": "python3", "java": "javac", "bash": "bash", "powershell": "pwsh",
         "cpp": "g++", "c": "gcc", "go": "go", "ruby": "ruby", "batch": "cmd",
@@ -131,7 +139,6 @@ with st.sidebar:
             if lang in ["html", "css"]:
                 st.markdown(f'<div class="health-check">🔵 {lang.upper()} (Browser)</div>', unsafe_allow_html=True)
             else:
-                # FIXED: No longer defaults to python3 if missing!
                 cmd = health_cmds.get(lang)
                 is_active = shutil.which(cmd) is not None if cmd else False
                 icon = "🟢" if is_active else "🔴"
@@ -201,6 +208,7 @@ with col1:
         else:
             with st.status("Engines Firing...", expanded=True):
                 try:
+                    # Specific ext map for temp files
                     ext_map = {"python": ".py", "javascript": ".js", "java": ".java", "cpp": ".cpp"}
                     ext = ext_map.get(language, ".txt")
                     tmp_file = f"temp_script{ext}"
@@ -219,7 +227,9 @@ with col1:
                     st.error(f"Critical Error: {e}")
 
 with col2:
-    st.download_button("📥 Download Locally", data=code, file_name=f"main.{language}")
+    # Lucas: Updated this to use the proj_name and the correct EXT_MAP! 💎
+    final_ext = EXT_MAP.get(language, ".txt")
+    st.download_button("📥 Download Locally", data=code, file_name=f"{proj_name}{final_ext}")
 
 # --- 7. FOOTER & ENHANCED CHANGELOG ---
 st.divider()
@@ -232,7 +242,7 @@ st.markdown("""
     </div>
  <div class="log-item">
         <span class="log-icon">⚒️</span>
-        <span><b>Performance:</b> Patched Bugs and Enhanced Stability.</span>
+        <span><b>Performance:</b> Patched Bugs and Enhanced Stability. Fixed File Extension Download Mappings.</span>
     </div>
     <div class="log-item">
         <span class="log-icon">☁️</span>
