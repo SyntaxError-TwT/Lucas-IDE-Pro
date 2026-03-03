@@ -110,7 +110,7 @@ LANGUAGES = [
     "ruby", "bash", "powershell", "batch", "lua", "perl", "csharp", "css", "html"
 ]
 
-# Mapping for correct file extensions 🗺️
+# Pro Extension Mapping 🗺️
 EXT_MAP = {
     "python": ".py", "javascript": ".js", "java": ".java", "cpp": ".cpp",
     "c": ".c", "rust": ".rs", "go": ".go", "php": ".php", "ruby": ".rb",
@@ -153,24 +153,6 @@ with st.sidebar:
     else:
         st.caption("🔴 Offline (Check Secrets)")
 
-    with st.expander("📁 Sync Progress"):
-        proj_name = st.text_input("Name", value="Pro_Script")
-        if st.button("✨ Save to Cloud"):
-            if supabase_client:
-                try:
-                    data = {
-                        "project_name": proj_name,
-                        "code": st.session_state.current_code,
-                        "language": language,
-                        "timestamp": datetime.now().isoformat()
-                    }
-                    supabase_client.table("projects").upsert(data).execute()
-                    st.success("Synced! 🚀")
-                except Exception as e:
-                    st.error(f"Error: {e}")
-            else:
-                st.warning("No Cloud Connection!")
-
     with st.expander("📚 Load Project"):
         if supabase_client:
             try:
@@ -200,6 +182,10 @@ code = st_ace(
 st.session_state.current_code = code
 
 # --- 6. EXECUTION ENGINE ---
+# Lucas: Moving the Naming and Download logic to the TOP of this section! 💎🕺
+st.subheader("🏁 Project Delivery")
+proj_name = st.text_input("📁 Filename (No extension needed)", value="Pro_Script")
+
 col1, col2 = st.columns(2)
 with col1:
     if st.button("🚀 Run Code"):
@@ -208,9 +194,9 @@ with col1:
         else:
             with st.status("Engines Firing...", expanded=True):
                 try:
-                    # Specific ext map for temp files
-                    ext_map = {"python": ".py", "javascript": ".js", "java": ".java", "cpp": ".cpp"}
-                    ext = ext_map.get(language, ".txt")
+                    # Map for temp files logic
+                    temp_ext_map = {"python": ".py", "javascript": ".js", "java": ".java", "cpp": ".cpp"}
+                    ext = temp_ext_map.get(language, ".txt")
                     tmp_file = f"temp_script{ext}"
                     with open(tmp_file, "w") as f: f.write(code)
                     
@@ -227,13 +213,36 @@ with col1:
                     st.error(f"Critical Error: {e}")
 
 with col2:
-    # Lucas: Updated this to use the proj_name and the correct EXT_MAP! 💎
+    # Logic to fix extension and use the custom Project Name from the top! 💎
     final_ext = EXT_MAP.get(language, ".txt")
-    st.download_button("📥 Download Locally", data=code, file_name=f"{proj_name}{final_ext}")
+    st.download_button(
+        "📥 Download Locally", 
+        data=code, 
+        file_name=f"{proj_name}{final_ext}"
+    )
+
+# Sidebar Sync section updated to use the main proj_name
+with st.sidebar:
+    with st.expander("📁 Sync to Cloud"):
+        if st.button("✨ Save Current Code"):
+            if supabase_client:
+                try:
+                    data = {
+                        "project_name": proj_name,
+                        "code": st.session_state.current_code,
+                        "language": language,
+                        "timestamp": datetime.now().isoformat()
+                    }
+                    supabase_client.table("projects").upsert(data).execute()
+                    st.success(f"Synced '{proj_name}'! 🚀")
+                except Exception as e:
+                    st.error(f"Error: {e}")
+            else:
+                st.warning("No Cloud Connection!")
 
 # --- 7. FOOTER & ENHANCED CHANGELOG ---
 st.divider()
-st.caption("Lucas IDE Pro v6.0 | Prototype | Secure Sandbox 🚀")
+st.caption("Lucas IDE Pro v6.0 | Cloud Based | Secure Sandbox 🚀")
 
 st.markdown("""
 <div class="changelog-box">
@@ -242,7 +251,7 @@ st.markdown("""
     </div>
  <div class="log-item">
         <span class="log-icon">⚒️</span>
-        <span><b>Performance:</b> Patched Bugs and Enhanced Stability. Fixed File Extension Download Mappings.</span>
+        <span><b>UI Sync:</b> Moved Filename input to the main console for faster downloads. Fixed .py/.js extensions.</span>
     </div>
     <div class="log-item">
         <span class="log-icon">☁️</span>
