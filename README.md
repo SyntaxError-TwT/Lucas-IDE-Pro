@@ -1,4 +1,4 @@
-💻 Lucas IDE Pro Edition v6.0
+💻 Ultimate IDE Pro Edition v6.0
 
 Welcome to the Lucas IDE Pro Edition, a high-performance, stylish, and multi-language web-based development environment. Built for speed, security, and aesthetics. 🚀✨
 
