@@ -66,7 +66,7 @@ golang-go (Go)
 **Linux (Kali, Ubuntu, Debian):** `sudo apt update`
                                   `sudo apt install {Package_Name}`
 
-**Windows:** Download installer from their own website, i.e. https://www.oracle.com/java/technologies/downloads/#java21, Run the downloaded launcher, and your done.             
+**Windows:** Download installer from their own website, e.g. https://www.oracle.com/java/technologies/downloads/#java21, Run the downloaded launcher, and your done.             
 
 
 3. Launch the IDE
